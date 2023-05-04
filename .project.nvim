@@ -1,0 +1,12 @@
+local vim = vim
+vim.g.title = false
+vim.cmd('ProjectRoot')
+
+-- Run shell command 'just build' in project root when :ProjectBuild is called
+_G.project_build = function()
+  print("Building project...")
+  vim.cmd('ProjectRoot')
+
+  vim.cmd('!just build nvim')
+end
+
