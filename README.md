@@ -10,8 +10,8 @@ While the tool works, there is some setup required,and bugs to work out. I would
 > cargo run works fine, but to build and run standalone, it requires libtorch and for the appropriate env vars to be set, which can be seen in the .env file.
 
 Running `cargo run` will automatically download the appropriate libtorch version, and you could then simply copy it to a permanent location and set the env vars to that directory.
-libtorch can be found in the following location after running:
-target/**/build/torch-sys-**/out/libtorch
+libtorch can be found in the following location after that:
+`target/**/build/torch-sys-**/out/libtorch`
 
 Uses the AllMiniLmL12V2 model for generating the text embeddings.
 
