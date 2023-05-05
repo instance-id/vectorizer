@@ -3,11 +3,11 @@ vim.g.title = false
 vim.cmd('ProjectRoot')
 
 vim.api.nvim_create_autocmd("BufWritePre", {
-    callback = function()
-      vim.cmd('!just on-save %')
-      -- vim.cmd('!./target/debug/vectorizer -p % --upload &')
-    end,
-  })
+  callback = function()
+    vim.cmd('!just on-save %')
+    -- vim.cmd('!./target/debug/vectorizer -p % --upload &')
+  end,
+})
 
 -- Run shell command 'just build' in project root when :ProjectBuild is called
 _G.project_build = function()

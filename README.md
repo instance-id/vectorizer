@@ -3,7 +3,7 @@ A personal WIP tool to create text embeddings for project files and upload them 
 
 The reason for this tool is to be able to upload project files without having to hit OpenAI api's every time I wanted to upload something.
 
-While the tool works, there is some setup required,and bugs to work out. I would not recommend using it yet, but I can't tell you what to do with your life.
+While the tool works, there is some setup required and probably some bugs yet to be discovered. I would not recommend using it for anything serious, but I can't tell you what to do with your life.
 
 
 > **Note**
@@ -13,7 +13,24 @@ Running `cargo run` will automatically download the appropriate libtorch version
 libtorch can be found in the following location after that:
 `target/**/build/torch-sys-**/out/libtorch`
 
-Uses the AllMiniLmL12V2 model for generating the text embeddings.
+Uses the All-MiniLm-(L12/L6)-V2 model for generating the text embeddings. Currently L12, but I could make it selectable as to which one to use if needed. It also downloads and caches the model, but this causes a small extra overhead each run.  
+
+This can be mitigated by persisting the model and specifying it's location. Currently, this must be hard coded in vectorize.rs, but I could also expose this as a setting.  
+
+I have not done so because the tool was just for me and I am fine with how it is. If someone else requests this change, I can definitely make it happen.   
+
+If you want to auto upsert files when you save them:
+
+#### nvim:
+
+```lua
+vim.api.nvim_create_autocmd("BufWritePre", {
+  callback = function()
+    vim.cmd('!vectorizer -p % --upload &')
+    -- vim.cmd('!just on-save %')
+  end,
+})
+```
 
 ---
 ![alt text](https://i.imgur.com/cg5ow2M.png "instance.id")
