@@ -118,13 +118,6 @@ pub async fn search_documents(client: QdrantClient, search: SearchData) -> Resul
   let results = client.search_points(&search_points).await?;
 
   dbg!(&results);
-
-  // for result in &results.result {
-  //   result.clone().payload.into_iter().for_each(|(key, value)| {
-  //     dbg!(key, value);
-  //   });
-  // }
-
   Ok(results)
 }
 

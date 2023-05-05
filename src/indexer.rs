@@ -30,15 +30,34 @@ impl serde::Serialize for Error {
 type Index = BTreeMap<String, String>;
 
 pub fn build_index(settings: &config::Config) -> Documents {
-  let config_path = PathBuf::from(settings.get_str("indexer.project").unwrap());
+  let project_path = PathBuf::from(settings.get_str("indexer.project").unwrap());
+  let mut documents: Documents = Documents::new();
 
-  println!("Building index...");
+  info!("Building index...");
+
+  if Path::new(&project_path).is_dir() {
+   documents = handle_directory(&project_path, &settings)
+  } else if Path::new(&project_path).is_file() {
+   documents = handle_file(&project_path, &settings)
+  }
+
+  info!("Total documents: {}", documents.documents.len());
+  documents
+}
+
+fn handle_file(project_path: &Path, settings: &config::Config) -> Documents {
+  let metadata_store: MetaDataStore = MetaDataStore::new();
+  let mut documents = Documents::new();
+
+  let document = obtain_data(project_path.clone(), &mut metadata_store.metadata.clone(), &settings);
+
+  documents.add(document);
+  documents
+}
+
+fn handle_directory(project_path: &Path, settings: &config::Config) -> Documents { 
   fn is_hidden(entry: &DirEntry) -> bool {
-    entry
-      .file_name()
-      .to_str()
-      .map(|s| s.starts_with("."))
-      .unwrap_or(false)
+    entry.file_name().to_str().map(|s| s.starts_with(".")).unwrap_or(false)
   }
 
   let mut ignored: Vec<String> = Vec::new();
@@ -50,7 +69,9 @@ pub fn build_index(settings: &config::Config) -> Documents {
   if let Ok(values) = settings.get::<Vec<String>>("indexer.directories") { directories = values; }
 
   if directories.len() == 0 {
-    directories.push(config_path.to_str().unwrap().to_owned());
+    let cfg_path = project_path.to_str().unwrap();
+    debug!("Using path: {}", &cfg_path);
+    directories.push(cfg_path.to_owned());
   }
 
   let config = IndexConfig { ignored, extensions, directories };
@@ -59,7 +80,6 @@ pub fn build_index(settings: &config::Config) -> Documents {
   let mut documents = Documents::new();
 
   let mut metadata_store: MetaDataStore = MetaDataStore::new();
-  let mut metadata: HashMap<String, Value>;
 
   if let Ok(store) = &settings.get_str("database.metadata") {
     metadata_store = MetaDataStore::from_json(store);
@@ -67,29 +87,31 @@ pub fn build_index(settings: &config::Config) -> Documents {
 
   for dir in config.directories {
     if !Path::new(&dir).exists() {
-      println!("ERROR: {:?} does not exist", dir);
+      warn!("ERROR: {:?} does not exist", dir);
       continue;
     }  
 
-    let dir_path = WalkDir::new(dir);
+    let dir_path = WalkDir::new(&dir);
+    let entries = &mut dir_path.into_iter();
 
-    let mut entries = dir_path.into_iter();
-    if let Some(Err(err)) = entries.next() {
-      println!("ERROR: {}", err);
+    if let Some(Err(err)) = &entries.next() {
+      warn!("ERROR: {}", err);
       continue;
     }
 
     loop {
       let entry = match entries.next() {
         None => break,
-        Some(Err(err)) => { println!("ERROR: {}", err); continue; }
+        Some(Err(err)) => { warn!("ERROR: {}", err); continue; }
         Some(Ok(entry)) => entry,
       };
 
-
       // --| Skip ignored directories
       if config.ignored.len() > 0 {
-        let path = entry.path().canonicalize().unwrap().to_str().unwrap().to_owned();
+        let path_str = entry.path().canonicalize();
+        if path_str.is_err() { continue; }
+
+        let path = path_str.unwrap().to_str().unwrap().to_owned();
         let ignore = path.contains(config.ignored.to_owned().join("/").as_str());
 
         if ignore {  
@@ -116,34 +138,8 @@ pub fn build_index(settings: &config::Config) -> Documents {
       }
 
       // --| Apply metadata to the document
-      metadata = metadata_store.metadata.clone();
-     
-      let content = std::fs::read_to_string(entry.path()).unwrap();
-
-      let path = entry.path().display().to_string();
-      let name = entry.path().file_name().expect("Should be able to get file name").to_str().unwrap().to_owned();
-      let extension = entry.path().extension().expect("Should be able to get the extension").to_str().unwrap().to_owned();
-      let file_stem = entry.path().file_stem().expect("Should be able to get the file stem").to_str().unwrap().to_owned();
-
-      metadata.insert("path".to_owned(), Value::String(path.clone()));
-      metadata.insert("file_name".to_owned(), Value::String(name.clone()));
-      metadata.insert("extension".to_owned(), Value::String(extension.clone()));
-      metadata.insert("file_stem".to_owned(), Value::String(file_stem.clone()));
-
-      let mut document = Document{
-        name: name.clone(),
-        id: uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, name.clone().as_bytes()).to_string(),
-        text: content,
-        metadata,
-        fragments: vec![],
-      };
-
-      debug!("Indexing: {}", &path);
-      let fragments = create_fragments_from_text(document.text.clone(), &settings);
-      for i in 0..fragments.len() {
-        document.add_fragment(fragments[i].clone(), i);
-      }
-
+      let document = obtain_data(entry.path().clone(), &mut metadata_store.metadata.clone(), &settings);
+    
       let path = entry.path().display().to_string();
       let file = entry.path().file_stem().unwrap().to_str().unwrap().to_owned();
 
@@ -152,9 +148,39 @@ pub fn build_index(settings: &config::Config) -> Documents {
     }
   }
 
-  info!("Total documents: {}", documents.documents.len());
   documents
 }
+
+fn obtain_data(entry: &Path, metadata: &mut HashMap<String, Value>, settings: &config::Config) -> Document {
+  let content = std::fs::read_to_string(&entry).unwrap();
+
+  let path = entry.display().to_string();
+  let name = entry.file_name().expect("Should be able to get file name").to_str().unwrap().to_owned();
+  let extension = entry.extension().expect("Should be able to get the extension").to_str().unwrap().to_owned();
+  let file_stem = entry.file_stem().expect("Should be able to get the file stem").to_str().unwrap().to_owned();
+
+  metadata.insert("path".to_owned(), Value::String(path.clone()));
+  metadata.insert("file_name".to_owned(), Value::String(name.clone()));
+  metadata.insert("extension".to_owned(), Value::String(extension.clone()));
+  metadata.insert("file_stem".to_owned(), Value::String(file_stem.clone()));
+
+  let mut document = Document{
+    name: name.clone(),
+    id: uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, name.clone().as_bytes()).to_string(),
+    text: content,
+    fragments: vec![],
+    metadata : metadata.clone(),
+  };
+
+  debug!("Indexing: {}", &path);
+  let fragments = create_fragments_from_text(document.text.clone(), &settings);
+  for i in 0..fragments.len() {
+    document.add_fragment(fragments[i].clone(), i);
+  }
+
+ document
+}
+
 
 pub fn _search_files(buffer: String, app_data_dir: PathBuf,) -> Result<HashMap<String, String>, Error> {
   let index_file = File::open(app_data_dir.as_path()).unwrap();
@@ -162,22 +188,9 @@ pub fn _search_files(buffer: String, app_data_dir: PathBuf,) -> Result<HashMap<S
   let mut search_results = HashMap::<String, String>::new();
 
   for (path, filename) in index.into_iter().filter(|(_, v)| v.contains(&buffer)) {
-    println!("Found: {:?} at {:?}", filename, path);
+    warn!("Found: {:?} at {:?}", filename, path);
     search_results.insert(path, filename);
   }
 
   Ok(search_results) 
 }
-
-// pub fn open_file(path: String) -> Result<(), Error> {
-//     let path = Path::new(&path);
-//
-//     match open::commands(path)[0].spawn() {
-//         Ok(_) => {
-//             println!("Opened {}", path.display());
-//         }
-//         Err(err) => return Err(Error::Io(err)),
-//     }
-//
-//     Ok(())
-// }

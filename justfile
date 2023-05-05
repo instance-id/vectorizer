@@ -71,3 +71,7 @@ _run-linux source:
     ./target/debug/vectorizer -p /mnt/x/GitHub/fubark/cyber/test -e=cy --index
   } 
 
+
+on-save file:
+  ./target/debug/vectorizer -p {{file}} --upload
+  write-host "Upload Complete."

@@ -1,0 +1,3 @@
+
+$LIBTORCH = $env:LIBTORCH="$HOME/libtorch"
+$env:LD_LIBRARY_PATH = "${LIBTORCH}/lib:$env:LD_LIBRARY_PATH"

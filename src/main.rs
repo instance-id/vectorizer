@@ -1,9 +1,9 @@
 mod qdrant;
 mod indexer;
+mod fragments;
 mod vectorize;
 mod data_types;
 mod configuration;
-mod fragments;
 
 use clap::{arg, Arg, Command};
 
@@ -21,7 +21,7 @@ use qdrant_client::prelude::*;
 use crate::data_types::Arguments;
 use crate::qdrant::{test_connection, add_documents, SearchData, search_documents};
 use crate::configuration::{get_config_path, default_project_settings};
-use crate::vectorize::{Model, get_embeddings};
+use crate::vectorize::Model;
 
 #[macro_use]
 extern crate lazy_static;
@@ -107,8 +107,6 @@ async fn main() -> Result<(), Error> {
   // --| Project Path -------
   check_project(&args.clone(), &mut settings)?;
 
-  // Example of top level client
-  // You may also use tonic-generated client from `src/qdrant.rs`
   let config: QdrantClientConfig;
   if let Ok(url) = &settings.get_str("database.url") {
     config = QdrantClientConfig::from_url( url);  
@@ -131,20 +129,23 @@ async fn main() -> Result<(), Error> {
       let upload_start = Instant::now();
       info!("Uploading files");
 
-      let model = Model::new().await; 
+      let (_handle, model) = Model::spawn(); 
 
       let index_start = Instant::now();
       let documents = indexer::build_index(&settings);
-      if documents.documents.len() == 0 { return Err(anyhow!("No documents found")); }
+      if documents.documents.len() == 0 { 
+        warn!("No documents found");
+        return Ok(()); 
+      }
+
       info!("Indexing took {:?}", index_start.elapsed());
 
       let embed_start = Instant::now();
-      // let doc_embeds = embedding_async(documents).await;
-      let doc_embeds = &get_embeddings(&documents, model).await;
+      let doc_embeds = model.encode(documents).await;
       info!("Embedding took {:?}", embed_start.elapsed());
 
       let add_start = Instant::now();
-      add_documents(client, doc_embeds.clone()).await?;  
+      add_documents(client, doc_embeds?.clone()).await?;  
       info!("Uploading took {:?}", add_start.elapsed());
 
       info!("Total upload time {:?}", upload_start.elapsed());
@@ -203,6 +204,10 @@ pub fn check_project(args: &Arguments, settings: &mut config::Config) -> Result<
     return Err(anyhow!("No project path provided"));
   }
 
+  if project.is_file(){
+    settings.set("indexer.is_file", true).unwrap();
+  }
+
   settings.set("indexer.project", project.to_str().unwrap()).unwrap();
 
   let mut vector_file = project.join(".vectorizer");
@@ -237,13 +242,21 @@ pub fn verify_settings(settings: &config::Config) -> Result<(), Error> {
     }
   }
 
-  match settings.get_array("indexer.extensions") {
-    Ok(_) => {}
-    Err(_) => {
-      error!("No extensions provided");
-      return Err(anyhow!("No extensions provided"));
+  if !settings.get_bool("indexer.is_file").ok().is_some() {
+    debug!("Is directory, check for extensions");
+    match settings.get_array("indexer.extensions") {
+      Ok(exts) => {
+        if exts.len() == 0 {
+          warn!("No extensions provided. Please provide the file extensions you wish to upload.");
+          return Err(anyhow!("No extensions provided. Please provide the file extensions you wish to upload."));
+        }
+      }
+      Err(_) => {
+        warn!("No extensions provided. Please provide the file extensions you wish to upload.");
+        return Err(anyhow!("No extensions provided. Please provide the file extensions you wish to upload."));
+      }
     }
-  }
+  } else { debug !("Is file, skip extension check"); }
 
   Ok(())
 }
