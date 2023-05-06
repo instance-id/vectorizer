@@ -69,6 +69,11 @@ If you want to async auto upsert the current buffer when you save them:
 local Job = require('plenary.job')
 local osEnv = {}
 
+for line in io.popen("set"):lines() do
+  local envName = line:match("^[^=]+")
+  osEnv[envName] = os.getenv(envName)
+end
+
 local function RunJob()
   local cwd = vim.fn.getcwd()
   local file = vim.fn.expand('%:p')
