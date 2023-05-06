@@ -10,6 +10,8 @@ for line in io.popen("set"):lines() do
   osEnv[envName] = os.getenv(envName)
 end
 
+--| On Buffer Write ---------------
+--|--------------------------------
 local function RunJob()
   local cwd = vim.fn.getcwd()
   local file = vim.fn.expand('%:p')
@@ -33,11 +35,33 @@ vim.api.nvim_create_autocmd("BufWritePost", {
   end,
 })
 
--- Run shell command 'just build' in project root when :ProjectBuild is called
+--| On Project Load ---------------
+--|--------------------------------
+_G.project_load = function()
+  local cwd = vim.fn.getcwd()
+
+  Job:new({
+    command = 'vectorizer',
+    args = {'-p', cwd, '--upload' },
+    cwd = cwd,
+    env = osEnv,
+    on_exit = function(j, return_val)
+      print(vim.inspect(return_val))
+      print(vim.inspect(j:result()))
+    end,
+    on_stderr = function(_, output) print(output) end,
+  }):start()
+end
+
+--| On Build Hotkey ---------------
+--|--------------------------------
+-- Run shell command 'just build'
+-- when :ProjectBuild is called
 _G.project_build = function()
   local cwd = vim.fn.getcwd()
-  print("Building project...")
   vim.cmd('ProjectRoot')
+
+  print("Building project...")
 
   Job:new({
     command = 'just',
@@ -50,25 +74,11 @@ _G.project_build = function()
     end,
     on_stderr = function(_, output) print(output) end,
   }):start()
-
-  -- vim.cmd('!just build nvim')
 end
 
+--| On Run Hotkey -----------------
+--|--------------------------------
 _G.project_run = function()
-  local dir2 = vim.fn.expand('%:p:h')
-
-  Job:new({
-    command = 'vectorizer',
-    args = { '-p %', '--upload' },
-    cwd = dir2,
-    env = {
-      ['LIBTORCH'] = '$HOME/libtorch',
-      ['LD_LIBRARY_PATH'] = '$LIBTORCH/lib:$LD_LIBRARY_PATH'
-    },
-    on_exit = function(j, return_val)
-      print(return_val)
-      print(j:result())
-    end,
-  }):start()
+  -- Nothing Currently
 end
 
