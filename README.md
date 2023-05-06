@@ -54,6 +54,47 @@ vim.api.nvim_create_autocmd("BufWritePost", {
 })
 ```
 
+# Main Configuration
+```toml
+# File Name:   $HOME/.config/vectorizer/settings.toml
+# File Format: Toml
+
+[indexer]
+log_level = "warn"
+project_file = false # Create a project settings override file automatically if you run vectorizer on a directory
+extensions   = []    # List of file extensions to index
+directories  = []    # List of directories to include within the project root
+ignored      = []    # List of directories to ignore within the project root
+
+[database]
+url          = ""    # URL to the database (required)
+collection   = ""    # Name of the collection to create/use
+max_tokens   = 256   # Maximum tokens per fragment when splitting documents
+metadata     = ""    # Additional Metadata to add, in json format - ex: '{"language":"rust", "content", "source code"}'
+```
+
+
+
+# Per Project Configuration
+
+To have specific settings per project, create a .vectorizer file in the project root
+Then run `vectorizer -p /path/to/project/root --upload`
+
+```toml
+# File Name:   .vectorizer
+# File Format: Toml
+
+# Only include the options you wish to override from the main configuration
+# Example:
+
+[indexer]
+extensions   = ["rs"]  
+
+[database]
+metadata     = '{"language":"rust", "content", "source code"}' 
+
+```
+
 ---
 ![alt text](https://i.imgur.com/cg5ow2M.png "instance.id")
 
