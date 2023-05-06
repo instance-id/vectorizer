@@ -47,7 +47,7 @@ local function RunJob()
   }):start()
 end
 
-vim.api.nvim_create_autocmd("BufWritePre", {
+vim.api.nvim_create_autocmd("BufWritePost", {
   callback = function()
     RunJob()
   end,

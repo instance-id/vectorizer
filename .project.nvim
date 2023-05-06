@@ -13,7 +13,6 @@ end
 local function RunJob()
   local cwd = vim.fn.getcwd()
   local file = vim.fn.expand('%:p')
-  local binary = cwd .. "/target/debug/"
 
   Job:new({
     command = 'vectorizer',
@@ -28,7 +27,7 @@ local function RunJob()
   }):start()
 end
 
-vim.api.nvim_create_autocmd("BufWritePre", {
+vim.api.nvim_create_autocmd("BufWritePost", {
   callback = function()
     RunJob()
   end,
