@@ -48,8 +48,7 @@ function GetTorch() {
 
 }
 
-
-# --| Build ----------------------
+# --| Buildir2d ----------------------
 # --|-----------------------------
 function RunBuild() {
   param(
@@ -67,6 +66,8 @@ function RunBuild() {
     $errorLines | ForEach-Object { output $_ -isError }
     $canContinue = $false
   }
+
+  cp $current/../target/debug/vectorizer $HOME/.local/bin
 
   if ($canContinue) { output "Compilation Successful" }
   else { output "Failed to compile!" -isError; exit 1 }

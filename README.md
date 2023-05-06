@@ -19,18 +19,41 @@ This can be mitigated by persisting the model and specifying it's location. Curr
 
 I have not done so because the tool was just for me and I am fine with how it is. If someone else requests this change, I can definitely make it happen.   
 
-If you want to auto upsert files when you save them:
+---
 
-#### nvim:
+### Neovim
+
+If you want to async auto upsert the current buffer when you save them:
 
 ```lua
+-- Requires plenary.nvim package
+local Job = require('plenary.job')
+local osEnv = {}
+
+local function RunJob()
+  local cwd = vim.fn.getcwd()
+  local file = vim.fn.expand('%:p')
+
+  Job:new({
+    command = 'vectorizer',
+    args = {'-p', file, '--upload' },
+    cwd = cwd,
+    env = osEnv,
+    on_exit = function(j, return_val)
+      print(vim.inspect(return_val))
+      print(vim.inspect(j:result()))
+    end,
+    on_stderr = function(_, output) print(output) end,
+  }):start()
+end
+
 vim.api.nvim_create_autocmd("BufWritePre", {
   callback = function()
-    vim.cmd('!vectorizer -p % --upload &')
-    -- vim.cmd('!just on-save %')
+    RunJob()
   end,
 })
 ```
 
 ---
 ![alt text](https://i.imgur.com/cg5ow2M.png "instance.id")
+

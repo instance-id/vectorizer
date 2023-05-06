@@ -1,5 +1,8 @@
 #!/usr/bin/env -S just --justfile
 
+# Powershell is just better/more flexible for this kind 
+# of stuff than bash IMO Sorry to anyone who is offended.
+
 # --| Cross platform shebang ----------
 # --|----------------------------------
 shebang := if os() == 'windows' {
@@ -8,7 +11,7 @@ shebang := if os() == 'windows' {
   '/usr/bin/env -S pwsh -noprofile -nologo'
 }
 
-set shell := ["/usr/bin/env", "pwsh" ,"-noprofile", "-nologo", "-c"]
+# set shell := ["/usr/bin/env", "pwsh" ,"-noprofile", "-nologo", "-c"]
 set windows-shell := ["pwsh.exe","-NoLogo", "-noprofile", "-c"]
 
 build := './scripts/build.ps1'

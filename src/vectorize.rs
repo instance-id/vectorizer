@@ -1,6 +1,5 @@
-use tch::Device;
-use anyhow::Error;
 use simplelog::*;
+use anyhow::Error;
 use std::time::Instant;
 use std::{ sync::mpsc, thread::{self, JoinHandle} };
 
@@ -97,15 +96,15 @@ pub fn get_text_embedding(text: &str) -> Vec<f32> {
 
 // --| Documents ----------------------
 // --|---------------------------------
-pub async fn _embedding_async(documents: Documents) -> EmbeddedDocuments {
-  let handle = tokio::task::spawn_blocking(move ||  {
-    let embeds = _get_embeddings3(&documents);
-    embeds
-  });
-
-  let res = handle.await.unwrap();
-  res
-}
+// pub async fn _embedding_async(documents: Documents) -> EmbeddedDocuments {
+//   let handle = tokio::task::spawn_blocking(move ||  {
+//     let embeds = get_text_embedding(&documents);
+//     embeds
+//   });
+//
+//   let res = handle.await.unwrap();
+//   res
+// }
 
 fn _to_array(array: &[f32]) -> [f32; 1536] {
     array.try_into().expect("slice with incorrect length")

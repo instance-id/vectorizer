@@ -1,19 +1,75 @@
 local vim = vim
+local Job = require('plenary.job')
+local osEnv = {}
+
 vim.g.title = false
 vim.cmd('ProjectRoot')
 
+for line in io.popen("set"):lines() do
+  local envName = line:match("^[^=]+")
+  osEnv[envName] = os.getenv(envName)
+end
+
+local function RunJob()
+  local cwd = vim.fn.getcwd()
+  local file = vim.fn.expand('%:p')
+  local binary = cwd .. "/target/debug/"
+
+  Job:new({
+    command = 'vectorizer',
+    args = {'-p', file, '--upload' },
+    cwd = cwd,
+    env = osEnv,
+    on_exit = function(j, return_val)
+      print(vim.inspect(return_val))
+      print(vim.inspect(j:result()))
+    end,
+    on_stderr = function(_, output) print(output) end,
+  }):start()
+end
+
 vim.api.nvim_create_autocmd("BufWritePre", {
   callback = function()
-    vim.cmd('!just on-save %')
-    -- vim.cmd('!./target/debug/vectorizer -p % --upload &')
+    RunJob()
   end,
 })
 
 -- Run shell command 'just build' in project root when :ProjectBuild is called
 _G.project_build = function()
+  local cwd = vim.fn.getcwd()
   print("Building project...")
   vim.cmd('ProjectRoot')
 
-  vim.cmd('!just build nvim')
+  Job:new({
+    command = 'just',
+    args = {'build', 'nvim' },
+    cwd = cwd,
+    env = osEnv,
+    on_exit = function(j, return_val)
+      print(vim.inspect(return_val))
+      print(vim.inspect(j:result()))
+    end,
+    on_stderr = function(_, output) print(output) end,
+  }):start()
+
+  -- vim.cmd('!just build nvim')
+end
+
+_G.project_run = function()
+  local dir2 = vim.fn.expand('%:p:h')
+
+  Job:new({
+    command = 'vectorizer',
+    args = { '-p %', '--upload' },
+    cwd = dir2,
+    env = {
+      ['LIBTORCH'] = '$HOME/libtorch',
+      ['LD_LIBRARY_PATH'] = '$LIBTORCH/lib:$LD_LIBRARY_PATH'
+    },
+    on_exit = function(j, return_val)
+      print(return_val)
+      print(j:result())
+    end,
+  }):start()
 end
 

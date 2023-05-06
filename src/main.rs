@@ -56,6 +56,7 @@ async fn main() -> Result<(), Error> {
       arg!(directories: -d --directories <List> "The list of directories to include within the project root directory")
       .value_delimiter(',').use_value_delimiter(true))
 
+
     .arg( // --| Ignored Directories -----------
       arg!(ignored: -i --ignored <List> "The list of directories to ignore within the project root directory")
       .value_delimiter(',').use_value_delimiter(true))
@@ -188,7 +189,7 @@ async fn main() -> Result<(), Error> {
     _ => unreachable!(),
   }
 
-  info!("Final Runtime: {:?}", initial_perf.elapsed());
+  println!("Upsert Complete: {:?}", initial_perf.elapsed());
   Ok(())
 }
 
