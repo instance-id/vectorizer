@@ -1,10 +1,11 @@
+use uuid;
 use anyhow::Result;
-use qdrant_client::qdrant::with_payload_selector::SelectorOptions;
 use std::collections::HashMap;
+use chrono::{Local, DateTime};
 use qdrant_client::prelude::*;
 use qdrant_client::qdrant::vectors_config::Config as vConfig;
+use qdrant_client::qdrant::with_payload_selector::SelectorOptions;
 use qdrant_client::qdrant::{CreateCollection, SearchPoints, VectorParams, VectorsConfig, Vectors, SearchResponse, Filter, WithPayloadSelector, SearchParams, WithVectorsSelector, ReadConsistency };
-use uuid;
 
 use crate::data_types::EmbeddedDocuments;
 use crate::vectorize::text_embedding_async;
@@ -57,8 +58,11 @@ pub async fn add_documents(client: QdrantClient, documents: EmbeddedDocuments) -
   
   let mut point_vec: Vec<PointStruct> = vec![];
 
-  let timestamp = std::time::SystemTime::now();
-  let time_string = format!("{:?}", timestamp);
+  // let timestamp = std::time::SystemTime::now();
+  // let time_string = format!("{:?}", timestamp);
+  let now: DateTime<Local> = Local::now();
+  println!("time_string: {}", now);
+
 
   for document in documents.documents {
     let id: String = document.id;
@@ -72,14 +76,14 @@ pub async fn add_documents(client: QdrantClient, documents: EmbeddedDocuments) -
       meta_vec.push((key, value.to_string()));
     }
 
-    let meta = serde_json::to_value(&meta_vec).unwrap().to_string(); 
+    let meta = serde_json::to_string(&meta_vec).unwrap().to_string(); 
 
     let tmp_payload  = vec![
       ("id", id.clone().into()),
       ("document_id", document_id.into()),
       ("name", name.into()),
       ("text", text.into()),
-      ("created_at", time_string.clone().into()),
+      ("created_at", now.clone().to_string().into()),
       ("metadata", meta.into())
     ];
 

@@ -1,19 +1,28 @@
 use std::collections::HashMap;
 
+use anyhow::{anyhow, Error};
 use clap::ArgMatches;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use simplelog::*;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ModelLocation { Local, Remote }
 
 // --| Arguments ----------------------
 // --|---------------------------------
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Arguments {
   pub dburl: Option<String>,
+  pub remote: Option<String>,
   pub project: Option<String>,
   pub metadata: Option<String>,
-  pub fragments: Option<usize>,
+  pub token_max: Option<usize>,
   pub log_level: Option<String>,
+  pub collection: Option<String>,
   pub ignored: Option<Vec<String>>,
+  pub location_path: Option<String>,
+  pub location: Option<ModelLocation>,
   pub extensions: Option<Vec<String>>,
   pub directories: Option<Vec<String>>,
 }
@@ -25,10 +34,14 @@ impl Arguments {
       ignored: None,
       project: None,
       metadata: None,
+      location: None,
       log_level: None,
-      fragments: None,
       extensions: None,
       directories: None,
+      location_path: None,
+      token_max: Some(256),
+      remote: Some("L12".to_string()),
+      collection: Some("document_chunks".to_string()),
     }
   }
    
@@ -38,8 +51,9 @@ impl Arguments {
     args.project = matches.get_one::<String>("project").cloned(); 
     args.log_level = matches.get_one::<String>("level").cloned();
     args.metadata = matches.get_one::<String>("metadata").cloned();
+    args.collection = matches.get_one::<String>("collection").cloned();
 
-    args.fragments  = matches.get_one::<String>("fragment_max").cloned()
+    args.token_max  = matches.get_one::<String>("token_max").cloned()
       .map(|s| s.parse::<usize>().unwrap());
 
     if let Some(values) = matches.get_many::<String>("extensions") {
@@ -54,20 +68,56 @@ impl Arguments {
       args.directories = Some(values.map(|s| s.to_string()).collect());
     }
 
+    if let Some(value) = matches.get_one::<String>("local"){
+      args.location = Some(ModelLocation::Local);
+      args.location_path = Some(value.to_string());
+    }
+    else if let Some(value) = matches.get_one::<String>("remote")  {
+      args.location = Some(ModelLocation::Remote);
+      args.remote = Some(value.to_string());
+    } 
+
     args 
   }
 
-  pub fn to_settings(&self, settings: &mut config::Config) {
+  pub fn to_settings(&self, settings: &mut config::Config) -> Result<(), Error> {
     if let Some(value)  = &self.dburl       { let _ = &settings.set("database.url", value.clone()).unwrap(); }
     if let Some(value)  = &self.project     { let _ = &settings.set("indexer.project", value.clone()).unwrap(); }
     if let Some(values) = &self.ignored     { let _ = &settings.set("indexer.ignored", values.clone()).unwrap(); }
     if let Some(value)  = &self.metadata    { let _ = &settings.set("database.metadata", value.clone()).unwrap(); }
     if let Some(value)  = &self.log_level   { let _ = &settings.set("indexer.log_level", value.clone()).unwrap(); }
+    if let Some(value)  = &self.collection  { let _ = &settings.set("database.collection", value.clone()).unwrap(); }
     if let Some(values) = &self.extensions  { let _ = &settings.set("indexer.extensions", values.clone()).unwrap(); }
     if let Some(values) = &self.directories { let _ = &settings.set("indexer.directories", values.clone()).unwrap(); }
-    if let Some(value)  = &self.fragments   { let _ = &settings.set("database.max_tokens", value.clone().to_string()).unwrap(); }
-  }
-} 
+    if let Some(value)  = &self.token_max   { let _ = &settings.set("database.max_tokens", value.clone().to_string()).unwrap(); }
+
+    if let Some(value) = &self.location{
+      let location = value.clone();
+
+      match &location {
+        ModelLocation::Local =>{
+          let path: String ;
+          if let Some(value) = &self.location_path{
+             path = value.clone();
+          } else {
+            warn!("Local model requires a path");
+            return Err(anyhow!("Local model requires a path"));
+          }
+
+          let _ = &settings.set("model.local", true).unwrap();
+          let _ = &settings.set("model.location", path).unwrap();
+        },
+
+        ModelLocation::Remote => {
+          let _ = &settings.set("model.local", false).unwrap();
+          let _ = &settings.set("model.location", self.remote.clone().unwrap()).unwrap();
+        }
+      }
+    }
+
+    Ok(())
+  } 
+}
 
 // --| Metadata -----------------------
 // --|---------------------------------

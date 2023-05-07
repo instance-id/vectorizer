@@ -1,14 +1,8 @@
-mod qdrant;
-mod indexer;
-mod fragments;
-mod vectorize;
-mod data_types;
-mod configuration;
-
-use clap::{arg, Arg, Command};
+use crate::cli::cli;
 
 use std::env;
 use std::time::Instant;
+use data_types::ModelLocation;
 use simplelog::*;
 use std::fs::File;
 use config::Config;
@@ -18,14 +12,23 @@ use std::path::PathBuf;
 use anyhow::{anyhow, Result, Error};
 use qdrant_client::prelude::*;
 
+mod cli;
+mod model;
+mod qdrant;
+mod indexer;
+mod database;
+mod fragments;
+mod vectorize;
+mod data_types;
+mod configuration;
+
 use crate::data_types::Arguments;
 use crate::qdrant::{test_connection, add_documents, SearchData, search_documents};
-use crate::configuration::{get_config_path, default_project_settings};
+use crate::configuration::{get_system_config, default_project_settings};
 use crate::vectorize::Model;
 
 #[macro_use]
 extern crate lazy_static;
-
 lazy_static! {
   pub static ref SETTINGS: RwLock<Config> = RwLock::new(Config::default());
 }
@@ -33,80 +36,35 @@ lazy_static! {
 #[tokio::main]
 async fn main() -> Result<(), Error> {
   let initial_perf = Instant::now();
+  let settings_path = get_system_config("vectorizer");
 
-  const VERSION: &str = env!("CARGO_PKG_VERSION");
-  let settings_path = get_config_path("vectorizer");
+  // --| Build cli ----------
+  let matches = cli().get_matches();
   
-  let matches = 
-    Command::new("vectorizer")
-    .about("Qdrant file indexer/uploader")
-    .version(VERSION)
-    .subcommand_required(true)
-    .arg_required_else_help(true)
-    .author("instance.id")
-
-    .arg( // --| Project Path -------------------
-      arg!(project: -p --project <Path> "The project root path"))
-
-    .arg( // --| Included Extensions ------------
-      arg!(extensions: -e --extensions <List> "The list of file extensions to include")
-      .value_delimiter(',').use_value_delimiter(true))
-
-    .arg( // --| Included Directories -----------
-      arg!(directories: -d --directories <List> "The list of directories to include within the project root directory")
-      .value_delimiter(',').use_value_delimiter(true))
-
-
-    .arg( // --| Ignored Directories -----------
-      arg!(ignored: -i --ignored <List> "The list of directories to ignore within the project root directory")
-      .value_delimiter(',').use_value_delimiter(true))
-
-    .arg( // --| Metadata json string
-      arg!(metadata: -m --metadata <String> "The metadata to use for all files"))
-
-    .arg( // --| Fragment Size ------------------
-      arg!(fragment_max: -f --fragment_max <Size> "The maximum amount of tokens per fragment"))
-
-    .arg( // --| Database Url -------------------
-      arg!(dburl: -u --url <Address> "The database url to use. ex: http://localhost:6334"))
-
-    .arg( // --| Log level ----------------------
-      arg!(level: -l --level <Name> "The log level to use")
-      // .default_value("info").default_missing_value("warn")
-      .value_parser(["error", "warn", "info", "debug"]))
-
-    .subcommand( // --| Index and upload --------
-      Command::new("upload").long_flag("upload").about("Index and upload files")
-      .arg(
-        Arg::new("path").long("path").short('P').help("Path to the file to upload")
-    ))
-    .subcommand( // --| Index Only --------------
-      Command::new("index").long_flag("index").about("Index files"))
-    
-    .subcommand( // --| Test Connection ---------
-      Command::new("test").long_flag("test").about("Test Connection to Qdrant"))
-    
-    .subcommand( // --| Search -------------------
-      Command::new("search").long_flag("search").about("Perform a test search on uploaded data")
-      .arg(
-        Arg::new("term").long("term").short('T').help("The search term to use")
-      )).get_matches();
-
-
-  let args = Arguments::from_matches(&matches);
+  let mut args = Arguments::from_matches(&matches);
   if let Some(level) = &args.log_level {
-    if !env::var("RUST_LOG").is_ok() { 
-      env::set_var("RUST_LOG", level);
-    }  
+    if !env::var("RUST_LOG").is_ok() { env::set_var("RUST_LOG", level); }
   }
 
+  // --| Logging ------------
   init_logging(settings_path);
-  
+
+  // --| Settings -----------
   let mut settings = SETTINGS.write().unwrap();
-  args.to_settings(&mut settings);
+  debug!("{:?}", &settings);
+
+  check_settings(&mut args, &mut settings);
+
+
+  if args.to_settings(&mut settings).is_err(){
+    // Early out if missing settings, but gives warning
+    return Ok(())
+  }
   
   // --| Project Path -------
   check_project(&args.clone(), &mut settings)?;
+  debug!("{:?}", &settings);
+
 
   let config: QdrantClientConfig;
   if let Ok(url) = &settings.get_str("database.url") {
@@ -121,6 +79,8 @@ async fn main() -> Result<(), Error> {
     return Ok(());
   }
 
+  drop(settings);
+ 
   let client = QdrantClient::new(Some(config)).await?;
 
   match matches.subcommand() {
@@ -130,20 +90,21 @@ async fn main() -> Result<(), Error> {
       let upload_start = Instant::now();
       info!("Uploading files");
 
-      let (_handle, model) = Model::spawn(); 
 
       let index_start = Instant::now();
-      let documents = indexer::build_index(&settings);
+      let documents = indexer::build_index();
       if documents.documents.len() == 0 { 
         warn!("No documents found");
         return Ok(()); 
       }
 
+      let (_handle, model) = Model::spawn(); 
       info!("Indexing took {:?}", index_start.elapsed());
 
       let embed_start = Instant::now();
       let doc_embeds = model.encode(documents).await;
       info!("Embedding took {:?}", embed_start.elapsed());
+      debug!("{:?}", &doc_embeds);
 
       let add_start = Instant::now();
       add_documents(client, doc_embeds?.clone()).await?;  
@@ -155,7 +116,7 @@ async fn main() -> Result<(), Error> {
     // --| Index -----------------
     Some(("index", _)) => {
      info!("Indexing files"); 
-     let _documents = indexer::build_index(&settings);
+     let _documents = indexer::build_index();
     },
     
     // --| Test Connection --------
@@ -191,6 +152,20 @@ async fn main() -> Result<(), Error> {
 
   println!("Upsert Complete: {:?}", initial_perf.elapsed());
   Ok(())
+}
+
+// --| Check Settings ---------------------------
+// --|-------------------------------------------
+pub fn check_settings(args: &mut Arguments, settings: &mut config::Config){
+  if args.location.is_none() {
+    if let Ok(local) = settings.get_str("model.local") {
+      args.location = Some(ModelLocation::Local);
+      args.location_path = Some(local.to_string());
+    }
+     else {
+       args.location = Some(ModelLocation::Remote);
+     }
+  }
 }
 
 // --| Check For Config File --------------------
@@ -275,7 +250,10 @@ pub fn init_logging(config_path: PathBuf) -> PathBuf {
     default_level = LevelFilter::from_str(&l).unwrap();
   }
 
-  let logging_config = ConfigBuilder::new().set_location_level(default_level).set_time_to_local(true).build();
+  let logging_config = ConfigBuilder::new()
+    .set_location_level(default_level)
+    .set_time_to_local(true).build();
+
   let log_path = config_path.join("vectorizer.log");
 
   CombinedLogger::init(

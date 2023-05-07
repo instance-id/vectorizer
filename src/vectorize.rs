@@ -1,20 +1,36 @@
 use simplelog::*;
 use anyhow::Error;
+use tch::Device;
 use std::time::Instant;
+use tokio::{sync::oneshot, task};
 use std::{ sync::mpsc, thread::{self, JoinHandle} };
 
 use rust_bert::pipelines::sentence_embeddings::{
-    SentenceEmbeddingsBuilder, SentenceEmbeddingsModelType
+    SentenceEmbeddingsBuilder, SentenceEmbeddingsModelType, SentenceEmbeddingsModel
 };
 
-use tokio::{sync::oneshot, task};
+use crate::SETTINGS;
 use crate::data_types::{Documents, EmbeddedDocuments};
 
+// --| Model Setup ------------------------------
+// --|-------------------------------------------
 type Message = (Documents, oneshot::Sender<EmbeddedDocuments>);
 
 pub struct Model {
   sender: mpsc::SyncSender<Message>,
 }
+
+fn get_model_type(model_str: &str) -> SentenceEmbeddingsModelType {
+  let model_type: SentenceEmbeddingsModelType; 
+
+  match model_str {
+    "L6" => model_type = SentenceEmbeddingsModelType::AllMiniLmL6V2,
+    "L12" => model_type = SentenceEmbeddingsModelType::AllMiniLmL12V2,
+    _ => model_type = SentenceEmbeddingsModelType::AllMiniLmL12V2
+  }
+  model_type
+}
+
 
 impl Model {
   pub fn spawn() -> (JoinHandle<anyhow::Result<()>>, Model) {
@@ -24,14 +40,28 @@ impl Model {
   }
 
   fn runner(receiver: mpsc::Receiver<Message>) -> anyhow::Result<(), Error> {
-    let model = SentenceEmbeddingsBuilder::remote(SentenceEmbeddingsModelType::AllMiniLmL12V2)
-      .create_model()
-      .expect("Could not load model");
+    debug!("Starting model runner");
 
-    // let model = SentenceEmbeddingsBuilder::local("resources/all-MiniLM-L6-v2")
-    //     .with_device(Device::cuda_if_available())
-    //     .create_model()?;
+    let settings = SETTINGS.read().unwrap();
+    let model: SentenceEmbeddingsModel;
 
+    if settings.get_bool("model.local").unwrap() {
+      let path = settings.get_str("model.location")?;
+      
+      debug!("Loading local model from: {}", path);
+      model = SentenceEmbeddingsBuilder::local(path) // "resources/all-MiniLM-L6-v2"
+          .with_device(Device::cuda_if_available())
+          .create_model()?;
+
+    } else {
+      debug!("Loading remote model");
+      let model_str = settings.get_str("model.location")?;
+      
+      model = SentenceEmbeddingsBuilder::remote(get_model_type(&model_str))
+        .create_model()
+        .expect("Could not load model");
+    }
+    
     while let Ok((documents, sender)) = receiver.recv() {
       let mut embedded_documents = Vec::new();
       let mut document_average_time = vec![];

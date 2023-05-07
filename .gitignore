@@ -18,3 +18,5 @@ Cargo.lock
 # resources/
 
 resources/
+
+output.log

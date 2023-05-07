@@ -1,3 +1,5 @@
 [indexer]
 extensions = ["rs"]
 
+[database]
+collection = "test_document_chunks"

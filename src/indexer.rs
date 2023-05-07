@@ -6,6 +6,7 @@ use walkdir::{DirEntry, WalkDir};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 
+use crate::SETTINGS;
 use crate::data_types::{Documents, Document, MetaDataStore};
 use crate::fragments::create_fragments_from_text;
 
@@ -29,9 +30,15 @@ impl serde::Serialize for Error {
 
 type Index = BTreeMap<String, String>;
 
-pub fn build_index(settings: &config::Config) -> Documents {
+pub fn build_index() -> Documents {
+  let settings = SETTINGS.write().unwrap();
+
   let project_path = PathBuf::from(settings.get_str("indexer.project").unwrap());
   let mut documents: Documents = Documents::new();
+
+  if let Some(collection) = settings.get_str("database.collection").ok() {
+    documents.collection = collection;
+  }
 
   info!("Building index...");
 
@@ -48,6 +55,9 @@ pub fn build_index(settings: &config::Config) -> Documents {
 fn handle_file(project_path: &Path, settings: &config::Config) -> Documents {
   let metadata_store: MetaDataStore = MetaDataStore::new();
   let mut documents = Documents::new();
+  if let Some(collection) = settings.get_str("database.collection").ok() {
+    documents.collection = collection;
+  }
 
   let document = obtain_data(project_path.clone(), &mut metadata_store.metadata.clone(), &settings);
 
@@ -78,6 +88,7 @@ fn handle_directory(project_path: &Path, settings: &config::Config) -> Documents
 
   let mut index = Index::new();
   let mut documents = Documents::new();
+
 
   let mut metadata_store: MetaDataStore = MetaDataStore::new();
 

@@ -5,7 +5,7 @@ use std::fs::File;
 
 use crate::SETTINGS;
 
-pub fn get_config_path(name: &str) -> PathBuf {
+pub fn get_system_config(name: &str) -> PathBuf {
     use std::fs;
 
     let key = "HOME";

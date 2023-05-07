@@ -48,7 +48,7 @@ function GetTorch() {
 
 }
 
-# --| Buildir2d ----------------------
+# --| Build ----------------------
 # --|-----------------------------
 function RunBuild() {
   param(
