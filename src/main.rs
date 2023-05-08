@@ -98,18 +98,18 @@ async fn main() -> Result<(), Error> {
       }
 
       let (_handle, model) = Model::spawn(); 
-      info!("Indexing took {:?}", index_start.elapsed());
+      perf!("Indexing time: {:?}", index_start.elapsed());
 
       let embed_start = Instant::now();
       let doc_embeds = model.encode(documents).await;
-      info!("Embedding took {:?}", embed_start.elapsed());
+      perf!("Embedding time: {:?}", embed_start.elapsed());
       debug!("{:?}", &doc_embeds);
 
       let add_start = Instant::now();
       add_documents(client, doc_embeds?.clone()).await?;  
-      info!("Uploading took {:?}", add_start.elapsed());
+      perf!("Upload time: {:?}", add_start.elapsed());
 
-      info!("Total upload time {:?}", upload_start.elapsed());
+      perf!("Processing time: {:?}", upload_start.elapsed());
     },
 
     // --| Index -----------------
@@ -149,7 +149,7 @@ async fn main() -> Result<(), Error> {
     _ => unreachable!(),
   }
 
-  perf!("Complete: {:?}", initial_perf.elapsed());
+  perfend!("Complete: {:?}", initial_perf.elapsed());
   Ok(())
 }
 
@@ -191,13 +191,26 @@ pub fn check_project(args: &Arguments, settings: &mut config::Config) -> Result<
     if !vector_file.exists() { vector_file = default_project_settings(project.clone()); }
   }
 
+
   if vector_file.exists() {
     let tmp_config = config::File::with_name(vector_file.to_str().unwrap()).format(config::FileFormat::Toml);
     settings.merge(tmp_config).unwrap();
+  } else { 
+    let mut cwd = get_current_working_dir();
+    cwd.push(".vectorizer"); 
+
+    if cwd.exists() {
+      let tmp_config = config::File::with_name(cwd.to_str().unwrap()).format(config::FileFormat::Toml);
+      settings.merge(tmp_config).unwrap();
+    } else {
+      error!("No .vectorizer file found");
+      return Err(anyhow!("No .vectorizer file found"));
+    }
   } 
 
   Ok(())
 }
+
 
 pub fn verify_settings(settings: &config::Config) -> Result<(), Error> {
 
@@ -263,3 +276,22 @@ pub fn init_logging(config_path: PathBuf) -> PathBuf {
 
   config_path
 }
+
+// --| Helper functions -------------------------
+// --|-------------------------------------------
+fn get_current_working_dir() -> PathBuf  {
+    let res = env::current_dir();
+    match res {
+        Ok(path) => path,
+        Err(_) => PathBuf::from_str("FAILED").unwrap(),
+    }
+}
+
+fn get_current_working_dir_str() -> String {
+    let res = env::current_dir();
+    match res {
+        Ok(path) => path.into_os_string().into_string().unwrap(),
+        Err(_) => "FAILED".to_string()
+    }
+}
+

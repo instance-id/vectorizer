@@ -67,12 +67,12 @@ pub async fn add_documents(client: QdrantClient, documents: EmbeddedDocuments) -
     let text = document.text;
     let metadata = document.metadata;
 
-    let mut meta_vec: Vec<(String, String)> = vec![];
-    for (key, value) in metadata {
-      meta_vec.push((key, value.to_string()));
-    }
+    // let mut meta_vec: Vec<(String, String)> = vec![];
+    // for (key, value) in metadata {
+    //   meta_vec.push((key, value.to_string()));
+    // }
 
-    let meta = serde_json::to_string(&meta_vec).unwrap().to_string(); 
+    let meta = serde_json::to_string(&metadata).unwrap().to_string(); 
 
     let tmp_payload  = vec![
       ("id", id.clone().into()),
@@ -99,6 +99,8 @@ pub async fn add_documents(client: QdrantClient, documents: EmbeddedDocuments) -
   Ok(())
 }
 
+// --| Search Database ----------------
+// --|---------------------------------
 pub async fn search_documents(client: QdrantClient, search: SearchData) -> Result<SearchResponse> {
   let search = search.search_term;
   let limit = 4 * 13 as u64;
@@ -121,6 +123,8 @@ pub async fn search_documents(client: QdrantClient, search: SearchData) -> Resul
   Ok(results)
 }
 
+// --| Test Connectivity --------------
+// --|---------------------------------
 pub async fn test_connection(client: QdrantClient) -> Result<()> {
   let collections_list = client.list_collections().await?;
 

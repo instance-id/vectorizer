@@ -2,11 +2,12 @@
 extensions = ["*"]
 
 [database]
-collection = "test_document_chunks"
+collection = "document_chunks"
+max_tokens = 256
 
 [model]
-local="L12"
+local="L6"
 
 [performance]
-enabled = true
+enabled = false 
 path = "/mnt/x/GitHub/instance-id/rust/vectorizer/performance.log"

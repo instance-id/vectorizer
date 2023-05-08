@@ -2,7 +2,7 @@ use simplelog::*;
 use tiktoken_rs::p50k_base;
 
 // Any higher can be truncated by the encoding model
-const MAX_TOKENS: usize = 256;
+const MAX_TOKENS: usize = 200;
 
 pub fn tokenizer(text: &str) -> Vec<&str>  {
     text.split(' ').collect::<Vec<&str>>() 
@@ -41,15 +41,20 @@ pub fn create_fragments_from_text(document: String, settings: &config::Config) -
   info!("Token total: {}", token_total);
   info!("Max tokens: {}", max_tokens);
 
+
   for token in tokens {
     fragment.push(token.clone());
     fragment_length += 1;
 
-    if fragment_length == max_tokens || token_total == fragment_length {
+    if fragment_length == max_tokens  {
       fragments.push(fragment.join(" "));
       fragment = Vec::new();
       fragment_length = 0;
     }
+  }
+
+  if fragment_length > 0 { 
+    fragments.push(fragment.join(" "));
   }
 
   fragments
