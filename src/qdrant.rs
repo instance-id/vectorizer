@@ -58,11 +58,7 @@ pub async fn add_documents(client: QdrantClient, documents: EmbeddedDocuments) -
   
   let mut point_vec: Vec<PointStruct> = vec![];
 
-  // let timestamp = std::time::SystemTime::now();
-  // let time_string = format!("{:?}", timestamp);
   let now: DateTime<Local> = Local::now();
-  println!("time_string: {}", now);
-
 
   for document in documents.documents {
     let id: String = document.id;

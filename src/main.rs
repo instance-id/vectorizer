@@ -1,5 +1,3 @@
-use crate::cli::cli;
-
 use std::env;
 use std::time::Instant;
 use data_types::ModelLocation;
@@ -21,7 +19,10 @@ mod fragments;
 mod vectorize;
 mod data_types;
 mod configuration;
+mod macros;
 
+
+use crate::cli::cli;
 use crate::data_types::Arguments;
 use crate::qdrant::{test_connection, add_documents, SearchData, search_documents};
 use crate::configuration::{get_system_config, default_project_settings};
@@ -55,7 +56,6 @@ async fn main() -> Result<(), Error> {
 
   check_settings(&mut args, &mut settings);
 
-
   if args.to_settings(&mut settings).is_err(){
     // Early out if missing settings, but gives warning
     return Ok(())
@@ -64,7 +64,6 @@ async fn main() -> Result<(), Error> {
   // --| Project Path -------
   check_project(&args.clone(), &mut settings)?;
   debug!("{:?}", &settings);
-
 
   let config: QdrantClientConfig;
   if let Ok(url) = &settings.get_str("database.url") {
@@ -150,7 +149,7 @@ async fn main() -> Result<(), Error> {
     _ => unreachable!(),
   }
 
-  println!("Upsert Complete: {:?}", initial_perf.elapsed());
+  perf!("Complete: {:?}", initial_perf.elapsed());
   Ok(())
 }
 

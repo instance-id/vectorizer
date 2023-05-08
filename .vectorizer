@@ -1,5 +1,12 @@
 [indexer]
-extensions = ["rs"]
+extensions = ["*"]
 
 [database]
 collection = "test_document_chunks"
+
+[model]
+local="L12"
+
+[performance]
+enabled = true
+path = "/mnt/x/GitHub/instance-id/rust/vectorizer/performance.log"

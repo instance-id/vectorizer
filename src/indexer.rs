@@ -30,6 +30,8 @@ impl serde::Serialize for Error {
 
 type Index = BTreeMap<String, String>;
 
+// --| Index Files ------------------------------
+// --|-------------------------------------------
 pub fn build_index() -> Documents {
   let settings = SETTINGS.write().unwrap();
 
@@ -40,7 +42,7 @@ pub fn build_index() -> Documents {
     documents.collection = collection;
   }
 
-  info!("Building index...");
+  info!("Indexing Files...");
 
   if Path::new(&project_path).is_dir() {
    documents = handle_directory(&project_path, &settings)
@@ -52,6 +54,8 @@ pub fn build_index() -> Documents {
   documents
 }
 
+// --| Handle File ------------------------------
+// --|-------------------------------------------
 fn handle_file(project_path: &Path, settings: &config::Config) -> Documents {
   let metadata_store: MetaDataStore = MetaDataStore::new();
   let mut documents = Documents::new();
@@ -65,6 +69,8 @@ fn handle_file(project_path: &Path, settings: &config::Config) -> Documents {
   documents
 }
 
+// --| Handle Directory -------------------------
+// --|-------------------------------------------
 fn handle_directory(project_path: &Path, settings: &config::Config) -> Documents { 
   fn is_hidden(entry: &DirEntry) -> bool {
     entry.file_name().to_str().map(|s| s.starts_with(".")).unwrap_or(false)
@@ -88,8 +94,6 @@ fn handle_directory(project_path: &Path, settings: &config::Config) -> Documents
 
   let mut index = Index::new();
   let mut documents = Documents::new();
-
-
   let mut metadata_store: MetaDataStore = MetaDataStore::new();
 
   if let Ok(store) = &settings.get_str("database.metadata") {
@@ -162,12 +166,21 @@ fn handle_directory(project_path: &Path, settings: &config::Config) -> Documents
   documents
 }
 
+// --| Obtain Data ------------------------------
+// --|-------------------------------------------
 fn obtain_data(entry: &Path, metadata: &mut HashMap<String, Value>, settings: &config::Config) -> Document {
   let content = std::fs::read_to_string(&entry).unwrap();
+  let extension: String;
 
   let path = entry.display().to_string();
   let name = entry.file_name().expect("Should be able to get file name").to_str().unwrap().to_owned();
-  let extension = entry.extension().expect("Should be able to get the extension").to_str().unwrap().to_owned();
+
+  if let Some(ext) = entry.extension() {
+    extension = ext.to_str().unwrap().to_owned();
+  } else {
+    extension = "".to_owned();
+  }
+
   let file_stem = entry.file_stem().expect("Should be able to get the file stem").to_str().unwrap().to_owned();
 
   metadata.insert("path".to_owned(), Value::String(path.clone()));

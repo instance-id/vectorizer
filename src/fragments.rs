@@ -1,7 +1,8 @@
 use simplelog::*;
 use tiktoken_rs::p50k_base;
 
-const MAX_FRAGMENT_LENGTH: usize = 200;
+// Any higher can be truncated by the encoding model
+const MAX_TOKENS: usize = 256;
 
 pub fn tokenizer(text: &str) -> Vec<&str>  {
     text.split(' ').collect::<Vec<&str>>() 
@@ -28,7 +29,9 @@ pub fn create_fragments_from_text(document: String, settings: &config::Config) -
     max_tokens = max as usize;
   }
   
-  if max_tokens == 0 { max_tokens = MAX_FRAGMENT_LENGTH as usize; }
+  if max_tokens == 0 || max_tokens > MAX_TOKENS { // Prevent truncation
+    max_tokens = MAX_TOKENS as usize; 
+  }
 
   let mut fragments: Vec<String> = Vec::new();
   let mut fragment = Vec::new();

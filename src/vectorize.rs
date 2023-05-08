@@ -31,7 +31,6 @@ fn get_model_type(model_str: &str) -> SentenceEmbeddingsModelType {
   model_type
 }
 
-
 impl Model {
   pub fn spawn() -> (JoinHandle<anyhow::Result<()>>, Model) {
     let (sender, receiver) = mpsc::sync_channel(100);
@@ -49,7 +48,7 @@ impl Model {
       let path = settings.get_str("model.location")?;
       
       debug!("Loading local model from: {}", path);
-      model = SentenceEmbeddingsBuilder::local(path) // "resources/all-MiniLM-L6-v2"
+      model = SentenceEmbeddingsBuilder::local(path)
           .with_device(Device::cuda_if_available())
           .create_model()?;
 
