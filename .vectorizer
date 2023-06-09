@@ -1,5 +1,6 @@
 [indexer]
-extensions = ["*"]
+level = "warn"
+extensions = ["*", "rs"]
 
 [database]
 collection = "document_chunks"
@@ -11,3 +12,11 @@ local="L6"
 [performance]
 enabled = false 
 path = "/mnt/x/GitHub/instance-id/rust/vectorizer/performance.log"
+
+# Takes priority over other include/exclude settings
+[matcher]
+rules = [
+  ".git/*",
+  "target/*", 
+  "resources/*"
+]

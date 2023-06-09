@@ -20,6 +20,7 @@ pub struct Arguments {
   pub token_max: Option<usize>,
   pub log_level: Option<String>,
   pub collection: Option<String>,
+  pub matcher: Option<Vec<String>>,
   pub ignored: Option<Vec<String>>,
   pub location_path: Option<String>,
   pub location: Option<ModelLocation>,
@@ -33,6 +34,7 @@ impl Arguments {
       dburl: None,
       ignored: None,
       project: None,
+      matcher: None,
       metadata: None,
       location: None,
       log_level: None,
@@ -56,16 +58,23 @@ impl Arguments {
     args.token_max  = matches.get_one::<String>("token_max").cloned()
       .map(|s| s.parse::<usize>().unwrap());
 
-    if let Some(values) = matches.get_many::<String>("extensions") {
-      args.extensions = Some(values.map(|s| s.to_string()).collect());
-    }
+    // --| Matcher takes precedence over extensions, ignored, and directories
+    // --| If present, ignore other match type arguments
+    if let Some(values) = matches.get_many::<String>("matcher") {
+      args.matcher = Some(values.map(|s| s.to_string()).collect());
+    } 
+    else {
+      if let Some(values) = matches.get_many::<String>("extensions") {
+        args.extensions = Some(values.map(|s| s.to_string()).collect());
+      }
 
-    if let Some(values) = matches.get_many::<String>("ignored") {
-      args.ignored = Some(values.map(|s| s.to_string()).collect());
-    }
+      if let Some(values) = matches.get_many::<String>("ignored") {
+        args.ignored = Some(values.map(|s| s.to_string()).collect());
+      }
 
-    if let Some(values) = matches.get_many::<String>("directories") {
-      args.directories = Some(values.map(|s| s.to_string()).collect());
+      if let Some(values) = matches.get_many::<String>("directories") {
+        args.directories = Some(values.map(|s| s.to_string()).collect());
+      }
     }
 
     if let Some(value) = matches.get_one::<String>("local"){
@@ -81,15 +90,18 @@ impl Arguments {
   }
 
   pub fn to_settings(&self, settings: &mut config::Config) -> Result<(), Error> {
-    if let Some(value)  = &self.dburl       { let _ = &settings.set("database.url", value.clone()).unwrap(); }
     if let Some(value)  = &self.project     { let _ = &settings.set("indexer.project", value.clone()).unwrap(); }
     if let Some(values) = &self.ignored     { let _ = &settings.set("indexer.ignored", values.clone()).unwrap(); }
-    if let Some(value)  = &self.metadata    { let _ = &settings.set("database.metadata", value.clone()).unwrap(); }
     if let Some(value)  = &self.log_level   { let _ = &settings.set("indexer.log_level", value.clone()).unwrap(); }
-    if let Some(value)  = &self.collection  { let _ = &settings.set("database.collection", value.clone()).unwrap(); }
     if let Some(values) = &self.extensions  { let _ = &settings.set("indexer.extensions", values.clone()).unwrap(); }
     if let Some(values) = &self.directories { let _ = &settings.set("indexer.directories", values.clone()).unwrap(); }
+
+    if let Some(value)  = &self.dburl       { let _ = &settings.set("database.url", value.clone()).unwrap(); }
+    if let Some(value)  = &self.metadata    { let _ = &settings.set("database.metadata", value.clone()).unwrap(); }
+    if let Some(value)  = &self.collection  { let _ = &settings.set("database.collection", value.clone()).unwrap(); }
     if let Some(value)  = &self.token_max   { let _ = &settings.set("database.max_tokens", value.clone().to_string()).unwrap(); }
+    
+    if let Some(values) = &self.matcher     { let _ = &settings.set("matcher.rules", values.clone()).unwrap(); }
 
     if let Some(value) = &self.location{
       let location = value.clone();

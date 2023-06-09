@@ -2,13 +2,14 @@ use simplelog::*;
 use std::fs::File;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
-use walkdir::{DirEntry, WalkDir};
+use walkdir::WalkDir;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 
 use crate::SETTINGS;
-use crate::data_types::{Documents, Document, MetaDataStore};
 use crate::fragments::create_fragments_from_text;
+use crate::data_types::{Documents, Document, MetaDataStore};
+use crate::walker::{FileWalker, DirEntry};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -44,6 +45,17 @@ pub fn build_index() -> Documents {
 
   info!("Indexing Files...");
 
+  if let Some(rules) = settings.get_array("matcher.rules").ok() {
+    let rules = rules.iter().map(|rule| rule.to_string()).collect::<Vec<String>>();
+    
+    let mut matcher = FileWalker::new(&project_path); 
+    let files = &matcher.walk_files(&rules);
+    dbg!(&files.iter().map(|x| x.path().to_str().unwrap()).collect::<Vec<&str>>());
+
+    documents = handle_matcher(files, &settings);
+
+  }
+
   if Path::new(&project_path).is_dir() {
    documents = handle_directory(&project_path, &settings)
   } else if Path::new(&project_path).is_file() {
@@ -51,6 +63,25 @@ pub fn build_index() -> Documents {
   }
 
   info!("Total documents: {}", documents.documents.len());
+  documents
+}
+
+// --| Handle Matcher ---------------------------
+// --|-------------------------------------------
+fn handle_matcher(files: &Vec<DirEntry>, settings: &config::Config) -> Documents {
+  let metadata_store: MetaDataStore = MetaDataStore::new();
+  let mut documents = Documents::new();
+  if let Some(collection) = settings.get_str("database.collection").ok() {
+    documents.collection = collection;
+  }
+
+  for file in files {
+    if file.path().is_dir() { continue; }
+
+    let document = obtain_data(file.path(), &mut metadata_store.metadata.clone(), &settings);
+    documents.add(document);
+  }
+
   documents
 }
 
@@ -63,7 +94,11 @@ fn handle_file(project_path: &Path, settings: &config::Config) -> Documents {
     documents.collection = collection;
   }
 
-  let document = obtain_data(project_path.clone(), &mut metadata_store.metadata.clone(), &settings);
+  let document = obtain_data(
+    project_path.clone(), 
+    &mut metadata_store.metadata.clone(), 
+    &settings
+  );
 
   documents.add(document);
   documents
@@ -72,7 +107,7 @@ fn handle_file(project_path: &Path, settings: &config::Config) -> Documents {
 // --| Handle Directory -------------------------
 // --|-------------------------------------------
 fn handle_directory(project_path: &Path, settings: &config::Config) -> Documents { 
-  fn is_hidden(entry: &DirEntry) -> bool {
+  fn is_hidden(entry: &walkdir::DirEntry) -> bool {
     entry.file_name().to_str().map(|s| s.starts_with(".")).unwrap_or(false)
   }
 
@@ -140,6 +175,8 @@ fn handle_directory(project_path: &Path, settings: &config::Config) -> Documents
         continue;
       }
 
+      if entry.file_type().is_dir() { continue; }
+
       // --| Check for proper file extensions 
       let extension = &entry.path().extension();
       if extension.is_none() && config.extensions.len() > 0
@@ -153,7 +190,11 @@ fn handle_directory(project_path: &Path, settings: &config::Config) -> Documents
       }
 
       // --| Apply metadata to the document
-      let document = obtain_data(entry.path().clone(), &mut metadata_store.metadata.clone(), &settings);
+      let document = obtain_data(
+        entry.path().clone(), 
+        &mut metadata_store.metadata.clone(), 
+        &settings
+      );
     
       let path = entry.path().display().to_string();
       let file = entry.path().file_stem().unwrap().to_str().unwrap().to_owned();

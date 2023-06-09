@@ -11,7 +11,6 @@ pub fn tokenizer(text: &str) -> Vec<&str>  {
 pub fn _tokenize(text: &str) -> Vec<usize> {
   let bpe = p50k_base().unwrap();
   let tokens = bpe.encode_with_special_tokens(text);
-  dbg!(&tokens);
   tokens
 }
 

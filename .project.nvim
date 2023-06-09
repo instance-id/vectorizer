@@ -38,7 +38,10 @@ vim.api.nvim_create_autocmd("BufWritePost", {
 --| On Project Load ---------------
 --|--------------------------------
 _G.project_load = function()
+  vim.cmd(":ProjectAddMuanually")
   local cwd = vim.fn.getcwd()
+
+  osEnv["RUST_BACKTRACE"] = 1
 
   Job:new({
     command = 'vectorizer',
@@ -79,6 +82,11 @@ end
 --| On Run Hotkey -----------------
 --|--------------------------------
 _G.project_run = function()
-  -- Nothing Currently
-end
+  local cwd = vim.fn.getcwd()
+  local command = "env WINIT_UNIX_BACKEND=x11 alacritty --working-directory " .. cwd
 
+  vim.fn.jobstart(command, {
+    detach = true,
+    cwd = cwd
+  })
+end

@@ -19,6 +19,10 @@ pub fn cli() -> Command {
       arg!(extensions: -e --extensions <List> "The list of file extensions to include")
       .value_delimiter(',').use_value_delimiter(true))
 
+    .arg( // --| Included Extensions ------------
+      arg!(matcher: --matcher <List> "The list of glob patterns to match include/exclude against (takes precedence over all match types)")
+      .value_delimiter(',').use_value_delimiter(true))
+
     .arg( // --| Included Directories -----------
       arg!(directories: -d --directories <List> "The list of directories to include within the project root directory")
       .value_delimiter(',').use_value_delimiter(true))

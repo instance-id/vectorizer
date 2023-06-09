@@ -12,15 +12,16 @@ use qdrant_client::prelude::*;
 
 mod cli;
 mod model;
+mod macros;
 mod qdrant;
+mod walker;
 mod indexer;
+mod matcher;
 mod database;
 mod fragments;
 mod vectorize;
 mod data_types;
 mod configuration;
-mod macros;
-
 
 use crate::cli::cli;
 use crate::data_types::Arguments;
@@ -191,7 +192,6 @@ pub fn check_project(args: &Arguments, settings: &mut config::Config) -> Result<
     if !vector_file.exists() { vector_file = default_project_settings(project.clone()); }
   }
 
-
   if vector_file.exists() {
     let tmp_config = config::File::with_name(vector_file.to_str().unwrap()).format(config::FileFormat::Toml);
     settings.merge(tmp_config).unwrap();
@@ -211,9 +211,9 @@ pub fn check_project(args: &Arguments, settings: &mut config::Config) -> Result<
   Ok(())
 }
 
-
+// --| Verify Settings --------------------------
+// --|-------------------------------------------
 pub fn verify_settings(settings: &config::Config) -> Result<(), Error> {
-
   match settings.get_str("indexer.project") {
     Ok(_) => {}
     Err(_) => {
@@ -256,7 +256,7 @@ pub fn init_logging(config_path: PathBuf) -> PathBuf {
   let settings = SETTINGS.write().unwrap();
 
   // --| If env variable is provided, it will override other log level settings --
-  if let Ok(v) = env::var("RUST_LOG") {
+  if let Ok(v) = env::var("VECTORIZER_LOG") {
     default_level = LevelFilter::from_str(&v).unwrap_or(LevelFilter::Warn);
   } else if let Ok(l) = settings.get_str("indexer.log_level") {
     default_level = LevelFilter::from_str(&l).unwrap();
